@@ -332,6 +332,46 @@ cost will scale with whatever day length ends up in `scenarios/market_v1.yaml`. 
 spec error to fix, just don't treat the earlier dollar figures as exact once the real
 day length is tuned.
 
+### Tick processing order
+
+Agents do not act in a fixed list order. Each tick, `world.py` draws a shuffled
+order from the single seeded RNG (see RNG discipline, above) before resolving
+actions. A fixed order silently favors whichever agent happens to be first in the
+list for any contested resource — first queue slot, first pick of a stall — and
+that bias is invisible until someone notices one customer is inexplicably always
+better fed. Shuffling from the seeded RNG keeps this fair and still fully
+deterministic under `test_determinism.py`.
+
+### Movement collisions
+
+Not addressed, and that is the decision: agents are not physical bodies and do not
+block each other's cells. Two agents may share a grid cell. This is explicitly
+allowed, not an oversight — do not "fix" it later without a reason grounded in
+actual observed behavior (e.g., if overlap makes the Phaser rendering confusing).
+
+### Supplier float
+
+The supplier's own running balance is not the same thing as `total_money`
+conservation. Total money across the whole population stays exactly constant by
+construction. The supplier's individual balance can still drift up or down over
+time if `daily_wage * customer_count` and `ingredient_cost * volume_purchased`
+aren't roughly matched — and a drifting supplier float is a signal, not a bug: it
+means those two YAML numbers are mismatched relative to each other. Log the
+supplier's balance alongside the daily metrics (add `supplier_balance` to the
+JSON Lines schema above) so this is visible on a graph rather than discovered by
+surprise on day 40.
+
+### What's intentionally left open
+
+`Action.utility()`'s exact formula is a type signature only, on purpose. This is a
+tuning decision, not an architecture decision, and it needs a first working pass
+plus real simulated output to tune against — writing a precise formula now, before
+any tick has executed, would just mean rewriting it blind. Same reasoning applies
+to the exact pitch-persuasion curve and reputation decay rate once those are
+built. The spec's job was to make the *shape* of these unambiguous (inputs,
+outputs, where they plug in) — not to pre-guess numbers that can only be found by
+running the simulation and watching what happens.
+
 ---
 
 ## Prior art
