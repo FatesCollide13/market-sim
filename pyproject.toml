@@ -1,0 +1,19 @@
+[project]
+name = "market-sim"
+version = "0.1.0"
+description = "A food marketplace simulation with utility-AI NPCs."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.117.0",
+    "fastapi>=0.139.2",
+    "mesa>=3.5.1",
+    "pydantic>=2.13.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
