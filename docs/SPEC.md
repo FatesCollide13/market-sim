@@ -260,6 +260,80 @@ Do not start v0.2 until v0.1 passes all seven. The temptation to add sprites ear
 
 ---
 
+## v0.1 gaps, resolved (addendum)
+
+Found on review, before `sim/components/position.py` or `inventory.py` get built — these
+close ambiguities that would otherwise get silently guessed at differently by different
+files.
+
+### Spatial mechanics
+
+Grid-based, integer cells, matching the toy prototype and the Stanford repo. Not
+freeform coordinates. `sim/components/position.py` holds `(x: int, y: int)`. Movement
+is one cell per tick, same rule as `stepAgent` in the prototype: close the larger of
+`dx`/`dy` first. `Entity.position` from `entity.py` should be read as the grid cell,
+not a continuous float — the throwaway script's `(0.0, 0.0)` was fine for a bare
+dataclass test, but `position.py` should formalize this as `int`.
+
+### Queueing
+
+Each stall has a `queue: list[EntityID]`, FIFO, with a `capacity` field from
+`scenarios/market_v1.yaml`. A customer whose target stall has a full queue does not
+wait — it re-scores (queue length depresses that stall's utility heavily) and likely
+picks a different action. This means "no room in line" naturally shows up as the
+agent going elsewhere, not as a stuck state.
+
+### The zero-hunger floor
+
+Needs never go negative — clamp all five fields to `[0, 100]`. At `hunger == 0`:
+patience and energy decay at 2x rate (a starving agent gets desperate, not deleted).
+No entity is ever removed from the simulation for a need hitting zero. This is
+required for `total_money` conservation to mean anything — removal would leak money
+that was ever in that agent's wallet. An agent stuck at zero hunger for many ticks is
+a signal your `hunger_per_tick` tuning is wrong, not a state the simulation needs to
+handle gracefully.
+
+### Supplier stock
+
+Infinite. The supplier is the town's abstraction for "the outside world" — it is not
+a character with its own resource constraint, it exists only to close the money loop
+(see the Economy section above). Do not model supplier stock depletion in v0.1. If a
+"the harvest was bad this season" mechanic is wanted later, that is a v0.2+ addition
+to the supplier's pricing, not a stock-out.
+
+### RNG discipline
+
+One seeded `random.Random(seed)` instance, created once in `sim/core/world.py`,
+threaded explicitly into anything that makes a random draw — `weighted_random` in the
+utility loop, personality sampling at agent creation, price-adjustment jitter if any.
+**No file may call the bare `random` module or construct its own `Random()`.** This
+is the single most common way `test_determinism.py` silently breaks, since an
+untracked random call is invisible until two runs with the same seed diverge and
+there's no obvious reason why.
+
+### Metrics log format
+
+Structured, not prose. One line per simulated day, JSON Lines format, written to
+`logs/day_metrics.jsonl`:
+
+```json
+{"day": 1, "total_money": 10000.0, "transactions": 22, "avg_price": 7.40, "bankruptcies": 0, "new_stalls": 0, "avg_reputation": 50.0}
+```
+
+This is what makes "day 30 differs from day 1" (definition-of-done #5) checkable by
+a script instead of by eyeballing a wall of text.
+
+### Day length arithmetic
+
+`day_start_hour: 8`, `day_end_hour: 20` in the YAML example is a 12-hour day, not the
+14-hour figure used earlier when estimating call volume and cost. The numbers in the
+"where the model fires" cost table were illustrative; actual per-day call counts and
+cost will scale with whatever day length ends up in `scenarios/market_v1.yaml`. Not a
+spec error to fix, just don't treat the earlier dollar figures as exact once the real
+day length is tuned.
+
+---
+
 ## Prior art
 
 | Source | Take | Skip |
